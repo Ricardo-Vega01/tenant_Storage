@@ -5,8 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -14,65 +13,176 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  super_admin
-  admin
-  user
-}
-
-model Tenant {
-  id            String   @id @default(uuid())
-  name          String
-  domain        String   @unique
-  bucketFolder  String
-  createdAt     DateTime @default(now())
-  users         User[]
-}
-
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  password      String
-  role          Role
-  refreshToken  String?
-  ipAddress     String?
-  lastLogin     DateTime?
-  createdAt     DateTime @default(now())
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId      String
-  auditLogs     AuditLog[]
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         UserRole      @default(User)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sessions     UserSession[]
+  files        File[]
+  folders      Folder[]
 }
 
-model AuditLog {
-  id         String   @id @default(uuid())
-  action     String
-  resource   String?
-  timestamp  DateTime @default(now())
-  ipAddress  String?
-  user       User     @relation(fields: [userId], references: [id])
-  userId     String
+enum UserRole {
+  Super
+  Admin
+  User
 }
 
-model File {
-  id          String   @id @default(uuid())
-  name        String
-  path        String   // Ruta relativa dentro del bucket
-  size        Int
-  mimeType    String
-  uploadedAt  DateTime @default(now())
-  uploadedBy  User     @relation(fields: [uploadedById], references: [id])
-  uploadedById String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId    String
+model UserSession {
+  id               String   @id @default(cuid())
+  user             User     @relation(fields: [userId], references: [id])
+  userId           String
+  refreshTokenHash String // Nunca guardar el token plano
+  ipAddress        String?
+  userAgent        String?
+  deviceId         String? // Si usas fingerprint
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime @default(now())
+  expiresAt        DateTime
+  revoked          Boolean  @default(false)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([ipAddress])
 }
 
 model Folder {
-  id         String   @id @default(uuid())
-  name       String
-  path       String   // Ruta relativa dentro del bucket
-  createdAt  DateTime @default(now())
-  createdBy  User     @relation(fields: [createdById], references: [id])
-  createdById String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId   String
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String? // Carpeta padre (para subcarpetas)
+  parent    Folder?  @relation("FolderParent", fields: [parentId], references: [id])
+  children  Folder[] @relation("FolderParent")
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id])
+  files     File[]
+  createdAt DateTime @default(now())
+  deletedAt DateTime
+
+  @@index([ownerId])
+  @@index([parentId])
+}
+
+model File {
+  id        String    @id @default(cuid())
+  name      String
+  mimeType  String
+  size      Int // Tamaño en bytes
+  url       String // URL del bucket S3 o similar
+  folderId  String?
+  folder    Folder?   @relation(fields: [folderId], references: [id])
+  ownerId   String
+  owner     User      @relation(fields: [ownerId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedBy String?
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([ownerId])
+  @@index([folderId])
+  @@index([createdAt])
+}
+
+model ClientConfig {
+  id           String         @id @default(cuid())
+  name         String
+  logoUrl      String?
+  primaryColor String?
+  domain       String // cliente.app.dev o personalizado
+  createdAt    DateTime       @default(now())
+  updatedBy    String?
+  updatedAt    DateTime       @updatedAt
+  ClientTenant ClientTenant[]
+  @@index([domain])
+}
+
+// Meta-DB fuera del cliente
+model ClientTenant {
+  id             String       @id @default(cuid())
+  name           String
+  slug           String       @unique // cliente.app.dev
+  domain         String? // cliente.com (custom CNAME)
+  dbUrl          String // conexión a la BD del cliente
+  plan           Plan         @relation(fields: [planId], references: [id])
+  planId         String
+  status         TenantStatus @default(Active)
+  storageUsedMB  Int          @default(0)
+  storageLimitMB Int // depende del plan
+  clientConfigId String
+  clientConfig   ClientConfig @relation(fields: [clientConfigId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([slug])
+  @@index([status])
+  @@index([planId])
+}
+
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Plan {
+  id               String             @id @default(cuid())
+  name             String
+  priceUSD         Float
+  storageLimitMB   Int
+  maxUsers         Int
+  createdAt        DateTime           @default(now())
+  ClientTenant     ClientTenant[]
+  PlatformAdminLog PlatformAdminLog[]
+}
+
+enum TenantStatus {
+  Active
+  Suspended
+  Trial
+  Cancelled
+}
+
+model AdminAccessLog {
+  id             String   @id @default(cuid())
+  adminId        String // ID del usuario con rol Admin
+  clientTenantId String // A qué cliente pertenece
+  action         String // e.g. "DELETE_FILE", "CREATE_FOLDER"
+  entityId       String? // ID del recurso afectado
+  entityType     String? // "File", "Folder", "User"
+  timestamp      DateTime @default(now())
+  @@index([adminId])
+  @@index([clientTenantId])
+  @@index([timestamp])
+}
+
+model PlatformAdminLog {
+  id             String   @id @default(cuid())
+  superId        String // ID del PlatformAdmin
+  clientTenantId String? // Si la acción afecta a un cliente
+  action         String // e.g. "SUSPEND_TENANT", "VIEW_METRICS"
+  targetId       String? // ID del cliente o recurso
+  targetType     String? // "ClientTenant", "Plan", "User"
+  timestamp      DateTime @default(now())
+  planId         String?
+  plan           Plan?    @relation(fields: [planId], references: [id])
+  @@index([superId])
+  @@index([clientTenantId])
+  @@index([timestamp])
+}
+
+model ImpersonationLog {
+  id             String   @id @default(cuid())
+  superId        String // ID del PlatformAdmin que simuló
+  targetUserId   String // Usuario simulado
+  clientTenantId String // Tenant al que pertenece el usuario
+  reason         String? // Justificación del acceso
+  timestamp      DateTime @default(now())
+  @@index([superId])
+  @@index([targetUserId])
+  @@index([clientTenantId])
 }
