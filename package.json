@@ -1,0 +1,26 @@
+{
+  "name": "storage",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "author": {
+    "email": "rvgabino36@gmail.com",
+    "name": "Ricardo"
+  },
+  "license": "MIT",
+  "imports": {
+    "#Config": "/src/Config/*",
+    "#Controllers": "/src/Controllers/*"
+  },
+  "scripts": {
+    "dev": "node --watch ./src/app.js",
+    "start": "",
+    "build": ""
+  },
+  "prisma": "/src/Database",
+  "dependencies": {
+    "@prisma/client": "^6.18.0",
+    "express": "^5.1.0",
+    "prisma": "^6.18.0"
+  }
+}
