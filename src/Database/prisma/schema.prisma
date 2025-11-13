@@ -36,10 +36,10 @@ model UserSession {
   id               String   @id @default(cuid())
   user             User     @relation(fields: [userId], references: [id])
   userId           String
-  refreshTokenHash String // Nunca guardar el token plano
+  refreshTokenHash String   // Never store plain tokens
   ipAddress        String?
   userAgent        String?
-  deviceId         String? // Si usas fingerprint
+  deviceId         String?  // if use fingerprint
   createdAt        DateTime @default(now())
   lastUsedAt       DateTime @default(now())
   expiresAt        DateTime
@@ -51,15 +51,17 @@ model UserSession {
 }
 
 model Folder {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
-  parentId  String? // Carpeta padre (para subcarpetas)
-  parent    Folder?  @relation("FolderParent", fields: [parentId], references: [id])
-  children  Folder[] @relation("FolderParent")
+  parentId  String?      // main folder (para sub folders)
+  parent    Folder?      @relation("FolderParent", fields: [parentId], references: [id])
+  children  Folder[]     @relation("FolderParent")
   ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id])
+  owner     User         @relation(fields: [ownerId], references: [id])
+  tenantId  String
+  tenant    ClientTenant @relation(fields: [tenantId], references: [id])
   files     File[]
-  createdAt DateTime @default(now())
+  createdAt DateTime     @default(now())
   deletedAt DateTime
 
   @@index([ownerId])
@@ -67,18 +69,20 @@ model Folder {
 }
 
 model File {
-  id        String    @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
   mimeType  String
-  size      Int // Tamaño en bytes
-  url       String // URL del bucket S3 o similar
+  size      Int         // size in bytes
+  url       String      // URL del bucket S3 o similar
   folderId  String?
-  folder    Folder?   @relation(fields: [folderId], references: [id])
+  folder    Folder?      @relation(fields: [folderId], references: [id])
   ownerId   String
-  owner     User      @relation(fields: [ownerId], references: [id])
-  createdAt DateTime  @default(now())
+  owner     User         @relation(fields: [ownerId], references: [id])
+  tenantId  String
+  tenant    ClientTenant @relation(fields: [tenantId], references: [id])
+  createdAt DateTime     @default(now())
   updatedBy String?
-  updatedAt DateTime  @updatedAt
+  updatedAt DateTime     @updatedAt
   deletedAt DateTime?
 
   @@index([ownerId])
@@ -91,11 +95,12 @@ model ClientConfig {
   name         String
   logoUrl      String?
   primaryColor String?
-  domain       String // cliente.app.dev o personalizado
+  domain       String         // client.app.dev or personalized domain
   createdAt    DateTime       @default(now())
   updatedBy    String?
   updatedAt    DateTime       @updatedAt
   ClientTenant ClientTenant[]
+
   @@index([domain])
 }
 
@@ -103,18 +108,20 @@ model ClientConfig {
 model ClientTenant {
   id             String       @id @default(cuid())
   name           String
-  slug           String       @unique // cliente.app.dev
-  domain         String? // cliente.com (custom CNAME)
-  dbUrl          String // conexión a la BD del cliente
+  slug           String       @unique // tenant.app.dev
+  domain         String?      // client.com (custom CNAME)
+  dbUrl          String       // connection to tenant DB
   plan           Plan         @relation(fields: [planId], references: [id])
   planId         String
   status         TenantStatus @default(Active)
   storageUsedMB  Int          @default(0)
-  storageLimitMB Int // depende del plan
+  storageLimitMB Int          // depend the plain
   clientConfigId String
   clientConfig   ClientConfig @relation(fields: [clientConfigId], references: [id])
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  folders        Folder[]
+  files          File[]
 
   @@index([slug])
   @@index([status])
@@ -149,12 +156,13 @@ enum TenantStatus {
 
 model AdminAccessLog {
   id             String   @id @default(cuid())
-  adminId        String // ID del usuario con rol Admin
-  clientTenantId String // A qué cliente pertenece
-  action         String // e.g. "DELETE_FILE", "CREATE_FOLDER"
-  entityId       String? // ID del recurso afectado
-  entityType     String? // "File", "Folder", "User"
+  adminId        String   // ID del user con rol Admin
+  clientTenantId String   // Client depend
+  action         String   // e.g. "DELETE_FILE", "CREATE_FOLDER"
+  entityId       String?  // ID resource affected
+  entityType     String?  // "File", "Folder", "User"
   timestamp      DateTime @default(now())
+
   @@index([adminId])
   @@index([clientTenantId])
   @@index([timestamp])
@@ -162,14 +170,15 @@ model AdminAccessLog {
 
 model PlatformAdminLog {
   id             String   @id @default(cuid())
-  superId        String // ID del PlatformAdmin
-  clientTenantId String? // Si la acción afecta a un cliente
-  action         String // e.g. "SUSPEND_TENANT", "VIEW_METRICS"
-  targetId       String? // ID del cliente o recurso
-  targetType     String? // "ClientTenant", "Plan", "User"
+  superId        String   // ID PlatformAdmin
+  clientTenantId String?  // Si client action
+  action         String   // e.g. "SUSPEND_TENANT", "VIEW_METRICS"
+  targetId       String?  // ID del client or resource
+  targetType     String?  // "ClientTenant", "Plan", "User"
   timestamp      DateTime @default(now())
   planId         String?
   plan           Plan?    @relation(fields: [planId], references: [id])
+
   @@index([superId])
   @@index([clientTenantId])
   @@index([timestamp])
@@ -177,11 +186,12 @@ model PlatformAdminLog {
 
 model ImpersonationLog {
   id             String   @id @default(cuid())
-  superId        String // ID del PlatformAdmin que simuló
-  targetUserId   String // Usuario simulado
-  clientTenantId String // Tenant al que pertenece el usuario
-  reason         String? // Justificación del acceso
+  superId        String   // ID del PlatformAdmin que simulated
+  targetUserId   String   // Simulated user
+  clientTenantId String   // User from tenant
+  reason         String?  // Justify the access
   timestamp      DateTime @default(now())
+
   @@index([superId])
   @@index([targetUserId])
   @@index([clientTenantId])

@@ -1,21 +1,20 @@
-import { labels } from "../../Utils/labels.js";
-import prisma from "./prismaInit.js";
+import { tenantManager } from "../../Services/Tenants/manager.service.js";
 
 export const shutdownSetup = (server) => {
-    const shutdown = async () => {
-        console.log('close and dissconected prisma server');
-        try{
-            await prisma.$disconnect();
-            server.close(()=>{
-                console.log('Discconected ok, Bye');
-                process.exit(0);
-            })
-        }catch(error){
-            console.error(labels.error.dbClose, error);
-            process.exit(1);
-        }
-    };
+  const shutdown = async () => {
+    console.log("Cerrando servidor y desconectando Prisma...");
+    try {
+      await tenantManager.disconnectAll();
+      server.close(() => {
+        console.log("Servidor cerrado correctamente");
+        process.exit(0);
+      });
+    } catch (error) {
+      console.error("Error al cerrar conexiones:", error);
+      process.exit(1);
+    }
+  };
 
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-}
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+};
