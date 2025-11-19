@@ -23,6 +23,7 @@
   },
   "prisma": "./src/Database/prisma/",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.934.0",
     "@prisma/client": "^6.18.0",
     "aws-sdk": "^2.1692.0",
     "bcrypt": "^6.0.0",

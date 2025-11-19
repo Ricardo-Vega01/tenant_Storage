@@ -7,17 +7,21 @@ import cors from "cors";
 import "dotenv/config";
 import { users } from "../Routes/Api/users.router.js";
 import { login } from "../Routes/Api/login.router.js";
+import { filesRouter } from "../Routes/Api/files.router.js";
 import { sessionCleaner } from "../Helpers/Job/cleanSession.helper.js";
 
 export const app = express();
 
 app.use(json());
+// Read special characters
+app.use(express.json({ encoding: "utf-8" }));
+app.use(express.urlencoded({ extended: true }));
 
 // General Web Routes
 app.use("/", web);
 
 // Api Router
-app.use("/api/v1", [users]);
+app.use("/api/v1", [users, filesRouter]);
 app.use("/auth", login);
 // Middlewares Implements
 app.use(ErrorHandler);
