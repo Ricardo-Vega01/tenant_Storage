@@ -1,6 +1,7 @@
-import { s3, bucket } from "../../Config/s3.config.js";
+import { s3, bucket } from "../../Config/bucket.config.js";
 import { DeleteObjectsCommand } from "@aws-sdk/client-s3";
-import { actionLog } from "../../Utils/actionLog.js";
+import { logAction } from "../Logs/action.service.js";
+
 
 export async function deleteFilesService({ keys, userId }) {
 
@@ -16,7 +17,7 @@ export async function deleteFilesService({ keys, userId }) {
     try {
         await s3.send(command);
 
-        await actionLog({
+        await logAction({
             userId,
             action: "DELETE_FILE",
             resource: "file",

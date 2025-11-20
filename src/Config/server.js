@@ -9,6 +9,7 @@ import { users } from "../Routes/Api/users.router.js";
 import { login } from "../Routes/Api/login.router.js";
 import { filesRouter } from "../Routes/Api/files.router.js";
 import { sessionCleaner } from "../Helpers/Job/cleanSession.helper.js";
+import { foldersRouter } from "../Routes/Api/folder.router.js";
 
 export const app = express();
 
@@ -21,7 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/", web);
 
 // Api Router
-app.use("/api/v1", [users, filesRouter]);
+app.use("/api/v1", [users, filesRouter, foldersRouter]);
 app.use("/auth", login);
 // Middlewares Implements
 app.use(ErrorHandler);
